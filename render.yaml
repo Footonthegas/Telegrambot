@@ -1,9 +1,10 @@
 services:
-  - type: worker
+  - type: web
     name: attendance-bot
     env: docker
     plan: free
-    buildCommand: ""
+    region: oregon
+    branch: main
     startCommand: python telegram_bot.py
     envVars:
       - key: SELENIUM_HEADLESS
@@ -16,4 +17,4 @@ services:
         value: eager
       - key: CHROMEDRIVER_PATH
         value: /usr/bin/chromedriver
-    autoDeploy: true
+    healthCheckPath: /health
