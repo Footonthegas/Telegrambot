@@ -1,0 +1,18 @@
+[Unit]
+Description=Attendance Bot — Telegram Attendance Scraper
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/attendance_bot
+Environment="PATH=/home/ubuntu/attendance_bot/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+ExecStart=/home/ubuntu/attendance_bot/.venv/bin/python3 /home/ubuntu/attendance_bot/telegram_bot.py
+Restart=always
+RestartSec=5
+StandardOutput=append:/home/ubuntu/attendance_bot/bot_stdout.log
+StandardError=append:/home/ubuntu/attendance_bot/bot_stderr.log
+
+[Install]
+WantedBy=multi-user.target

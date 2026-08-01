@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+attendance_bot.db
+attendance_bot.db-shm
+attendance_bot.db-wal
+bot.log
+bot_stdout.log
+bot_stderr.log
+.env
+captcha_debug/
+speed_test_results.log
+watcher.log

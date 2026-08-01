@@ -1,0 +1,12 @@
+flask==3.1.0
+twilio==9.4.0
+selenium==4.27.1
+webdriver-manager==4.0.2
+beautifulsoup4==4.12.3
+pytesseract==0.3.13
+Pillow>=11.2.1
+cryptography==44.0.0
+python-dotenv==1.0.1
+requests==2.32.3
+gunicorn==23.0.0
+ddddocr==1.6.1

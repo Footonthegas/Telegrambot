@@ -1,0 +1,19 @@
+services:
+  - type: worker
+    name: attendance-bot
+    env: docker
+    plan: free
+    buildCommand: ""
+    startCommand: python telegram_bot.py
+    envVars:
+      - key: SELENIUM_HEADLESS
+        value: "1"
+      - key: FAST_MODE
+        value: "1"
+      - key: ENABLE_HTTP_FAST_PATH
+        value: "1"
+      - key: PAGE_LOAD_STRATEGY
+        value: eager
+      - key: CHROMEDRIVER_PATH
+        value: /usr/bin/chromedriver
+    autoDeploy: true
