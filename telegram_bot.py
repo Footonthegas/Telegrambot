@@ -945,18 +945,24 @@ def _prompt_existing_user_semester(chat_id: str, purpose: str = "attendance_fetc
 def _continue_after_semester_selection(chat_id: str, semester: str, flow: dict[str, str]) -> None:
     purpose = str(flow.get("purpose") or "login").strip() or "login"
     if purpose == "attendance_fetch":
+        update_profile_filters(chat_id, semester=semester)
+        _send_message(chat_id, f"\u2705 Semester {semester} selected. Loading attendance...")
         saved_user = _get_saved_credentials(chat_id)
         if saved_user:
             _pending_auth.pop(chat_id, None)
-            update_profile_filters(chat_id, semester=semester)
-            _send_message(chat_id, f"\u2705 Semester {semester} selected. Loading attendance...")
             _start_live_fetch(chat_id, str(saved_user["user_id"]), str(saved_user["password"]))
             return
+        _pending_auth[chat_id] = {"stage": "awaiting_user_id", "purpose": "attendance_fetch"}
+        _send_message(
+            chat_id,
+            "\u2705 Semester selected.\n\ud83d\udcdd Now send your roll number.",
+        )
+        return
 
     _start_user_id_prompt(chat_id, purpose, announce=False)
     _send_message(
         chat_id,
-        f"\u2705 Semester {semester} selected.\n\U0001F393 Now send your roll number.",
+        f"\u2705 Semester {semester} selected.\n\ud83c\udf93 Now send your roll number.",
     )
 
 
@@ -1834,7 +1840,15 @@ def _handle_refresh_request(chat_id: str, force_live: bool = False) -> None:
                 return
             profile = get_profile(chat_id)
             if not profile or not profile.get("semester"):
-                _prompt_existing_user_semester(chat_id, "attendance_fetch")
+                if semester:
+                    _pending_auth[chat_id] = {"stage": "awaiting_semester", "purpose": "attendance_fetch"}
+                    _send_message(
+                        chat_id,
+                        "\U0001F393 Your saved login is ready.\nSelect your current semester to continue.",
+                        reply_markup=_semester_markup(),
+                    )
+                    return
+                _start_user_id_prompt(chat_id, "login")
                 return
             _start_live_fetch(chat_id, saved_user["user_id"], saved_user["password"])
             return
@@ -1860,6 +1874,14 @@ def _handle_refresh_request(chat_id: str, force_live: bool = False) -> None:
             return
         profile = get_profile(chat_id)
         if not profile or not profile.get("semester"):
+            if semester:
+                _pending_auth[chat_id] = {"stage": "awaiting_semester", "purpose": "attendance_fetch"}
+                _send_message(
+                    chat_id,
+                    "\U0001F393 Your saved login is ready.\nSelect your current semester to continue.",
+                    reply_markup=_semester_markup(),
+                )
+                return
             _prompt_existing_user_semester(chat_id, "attendance_fetch")
             return
         _start_live_fetch(chat_id, saved_user["user_id"], saved_user["password"])
