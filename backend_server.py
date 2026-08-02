@@ -22,8 +22,8 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 BACKEND_SERVER_ENABLED = os.getenv("BACKEND_SERVER_ENABLED", "1") == "1"
-BACKEND_SERVER_HOST = os.getenv("BACKEND_SERVER_HOST", "127.0.0.1").strip()
-BACKEND_SERVER_PORT = int(os.getenv("BACKEND_SERVER_PORT", "8080"))
+BACKEND_SERVER_HOST = os.getenv("BACKEND_SERVER_HOST", "0.0.0.0").strip()
+BACKEND_SERVER_PORT = int(os.getenv("BACKEND_SERVER_PORT", os.getenv("PORT", "8080")))
 BACKEND_PUBLIC_BASE_URL = os.getenv("BACKEND_PUBLIC_BASE_URL", "").rstrip("/")
 BACKEND_CONTROL_TOKEN = os.getenv("BACKEND_CONTROL_TOKEN", "").strip()
 
