@@ -17,10 +17,9 @@ Your repo is already at https://github.com/footonthegas/attendance_bot
    - **Name:** `attendance-bot`
    - **Region:** Oregon (US West)
    - **Branch:** `main`
-   - **Build Command:** `pip install -r requirements.txt`
-   - **Start Command:** `python telegram_bot.py`
    - **Plan:** Free
-5. Click **Create Web Service**
+5. Render will auto-detect the `render.yaml` and use Docker
+6. Click **Create Web Service**
 
 ### Step 3: Set Environment Variables
 
