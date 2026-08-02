@@ -28,8 +28,8 @@ In the Render dashboard, go to your service → **Environment** → **Add Enviro
 
 | Key | Value |
 |-----|-------|
-| `TELEGRAM_BOT_TOKEN` | `REDACTED` |
-| `FERNET_KEY` | `REDACTED` |
+| `TELEGRAM_BOT_TOKEN` | Your bot token from @BotFather |
+| `FERNET_KEY` | Your Fernet encryption key |
 | `SELENIUM_HEADLESS` | `1` |
 | `FAST_MODE` | `1` |
 | `ENABLE_HTTP_FAST_PATH` | `1` |
