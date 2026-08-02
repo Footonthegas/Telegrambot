@@ -21,6 +21,8 @@ services:
         value: "0.0.0.0"
       - key: BACKEND_SERVER_PORT
         value: "10000"
+      - key: PORT
+        value: "10000"
       - key: BACKEND_PUBLIC_BASE_URL
         value: https://attendance-bot-ng7k.onrender.com
     healthCheckPath: /health
