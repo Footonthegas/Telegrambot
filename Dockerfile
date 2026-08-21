@@ -1,3 +1,9 @@
+FROM golang:1.24-bookworm AS gobuilder
+
+WORKDIR /build
+COPY fast_scraper_go/ .
+RUN go build -o fast_scraper_go .
+
 FROM python:3.11-slim
 
 RUN apt-get update && apt-get install -y \
@@ -18,6 +24,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
+
+COPY --from=gobuilder /build/fast_scraper_go /app/fast_scraper_go
 
 EXPOSE 8080
 

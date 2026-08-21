@@ -3,6 +3,9 @@ scraper.py – Selenium-based login and attendance scraping for IMS NSIT portal.
 """
 
 import io
+import json
+import subprocess
+import tempfile
 import hashlib
 import logging
 import os
@@ -54,6 +57,12 @@ STATUS_INVALID_CAPTCHA = "invalid_captcha"
 STATUS_INVALID_CREDENTIALS = "invalid_credentials"
 STATUS_NAVIGATION_FAILED = "navigation_failed"
 STATUS_UNKNOWN_ERROR = "unknown_error"
+_GO_SCRAPER_SCRIPT = os.path.join(os.path.dirname(__file__), "fast_scraper_go", "main.go")
+_GO_SCRAPER_BINARY_WIN = os.path.join(os.path.dirname(__file__), "fast_scraper_go", "fast_scraper_go.exe")
+_GO_SCRAPER_BINARY_LINUX = os.path.join(os.path.dirname(__file__), "fast_scraper_go", "fast_scraper_go")
+_GO_SCRAPER_CACHE_DIR = os.path.join(os.path.dirname(__file__), "fast_scraper_go")
+_GO_SCRAPER_CACHE_KEY_LOCK = threading.Lock()
+_GO_SCRAPER_CACHE: dict[str, str] = {}
 
 KNOWN_SUBJECT_NAMES: dict[str, str] = {
     "MEICC405": "Control Systems",
@@ -3133,6 +3142,91 @@ def fetch_attendance_with_status(
     return data, status
 
 
+def _fetch_via_go_scraper(
+    user_id: str,
+    password: str,
+    year: str | None,
+    semester: str | None,
+) -> tuple[dict[str, dict[str, Any]], dict[str, list[dict[str, str]]], str]:
+    key = f"{user_id}\0{password}\0{year or ''}\0{semester or ''}"
+    script = _GO_SCRAPER_SCRIPT
+    binary = _GO_SCRAPER_BINARY_LINUX if os.path.exists(_GO_SCRAPER_BINARY_LINUX) else _GO_SCRAPER_BINARY_WIN
+    cmd = None
+    if os.path.exists(binary):
+        cmd = [binary, user_id, password]
+        if year:
+            cmd.extend(["--year", year])
+        if semester:
+            cmd.extend(["--semester", semester])
+    elif os.path.exists(script):
+        cmd = ["go", "run", script, user_id, password]
+        if year:
+            cmd.extend(["--year", year])
+        if semester:
+            cmd.extend(["--semester", semester])
+    if not cmd:
+        return {}, {}, STATUS_UNKNOWN_ERROR
+
+    try:
+        env = os.environ.copy()
+        env["CAPTCHA_SOLVER_SCRIPT"] = os.path.join(os.path.dirname(script), "solve_captcha_cli.py")
+        proc = subprocess.run(
+            cmd,
+            input=None,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            env=env,
+            cwd=os.path.dirname(script),
+        )
+        stdout = proc.stdout.strip()
+        stderr = proc.stderr.strip()
+        if stderr:
+            logger.debug("Go scraper stderr: %s", stderr[:500])
+        if proc.returncode != 0:
+            return {}, {}, STATUS_UNKNOWN_ERROR
+        data = json.loads(stdout)
+        status = str(data.get("status", "")).strip() or STATUS_UNKNOWN_ERROR
+        attendance: dict[str, dict[str, Any]] = {}
+        for code, entry in (data.get("attendance") or {}).items():
+            if not isinstance(entry, dict):
+                continue
+            total = int(entry.get("total", 0) or 0)
+            present = int(entry.get("present", 0) or 0)
+            absent = int(entry.get("absent", 0) or 0)
+            if total > 0:
+                attendance[str(code).upper()] = {
+                    "total": total,
+                    "present": present,
+                    "absent": absent,
+                }
+        timeline_raw = data.get("timeline") or {}
+        timeline: dict[str, list[dict[str, str]]] = {}
+        for code, entries in timeline_raw.items():
+            clean: list[dict[str, str]] = []
+            for entry in entries:
+                if not isinstance(entry, dict):
+                    continue
+                date = str(entry.get("date", "") or "").strip()
+                status_val = str(entry.get("status", "") or "").strip().lower()
+                raw = str(entry.get("raw", "") or "").strip()
+                if not date or not status_val:
+                    continue
+                clean.append({"date": date, "status": status_val, "raw": raw})
+            if clean:
+                timeline[str(code).upper()] = clean
+        return attendance, timeline, status
+    except json.JSONDecodeError:
+        logger.debug("Go scraper returned non-JSON output", exc_info=True)
+        return {}, {}, STATUS_UNKNOWN_ERROR
+    except subprocess.TimeoutExpired:
+        logger.debug("Go scraper timed out", exc_info=True)
+        return {}, {}, STATUS_UNKNOWN_ERROR
+    except Exception:
+        logger.debug("Go scraper failed", exc_info=True)
+        return {}, {}, STATUS_UNKNOWN_ERROR
+
+
 def fetch_attendance_detailed(
     user_id: str,
     password: str,
@@ -3155,6 +3249,19 @@ def fetch_attendance_detailed(
     warm_session: _WarmBrowserSession | None = None
     driver = None
     try:
+        data, timeline, go_status = _fetch_via_go_scraper(
+            user_id,
+            password,
+            year,
+            semester,
+        )
+        if go_status == STATUS_SUCCESS:
+            _last_datewise_timeline = timeline
+            logger.info("Go scraper fetched attendance for %s", user_id)
+            return data, timeline, STATUS_SUCCESS
+        if go_status not in {STATUS_UNKNOWN_ERROR, ""}:
+            logger.info("Go scraper failed for %s with status %s; falling back", user_id, go_status)
+
         # Fastest path: use plain HTTP session against the old server-rendered portal.
         data, timeline, http_status = _login_and_fetch_attendance_via_requests(
             user_id,

@@ -12,3 +12,9 @@ bot_stderr.log
 captcha_debug/
 speed_test_results.log
 watcher.log
+fast_scraper_go.exe
+fast_scraper_go/fast_scraper_go
+fast_scraper_go/fast_scraper_go_go1.*
+fast_scraper_go/*.test
+fast_scraper_go/*.out
+fast_scraper_go/.go/
