@@ -67,13 +67,15 @@ def _authorized(req) -> bool:
 def create_app() -> Flask:
     app = Flask(__name__)
 
-    @app.get("/health")
-    def health() -> Any:
+    def _health_response() -> Any:
         return jsonify(_build_status_payload())
 
-    @app.get("/health%20")
-    def health_with_trailing_space() -> Any:
-        return jsonify(_build_status_payload())
+    @app.get("/health")
+    def health() -> Any:
+        return _health_response()
+
+    app.add_url_rule("/health%20", "health_pct20", _health_response, methods=["GET"])
+    app.add_url_rule("/health " + "", "health_space", _health_response, methods=["GET"])
 
     @app.get("/status")
     def status() -> Any:

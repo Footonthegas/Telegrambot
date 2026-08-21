@@ -3170,6 +3170,7 @@ def _fetch_via_go_scraper(
     try:
         env = os.environ.copy()
         env["CAPTCHA_SOLVER_SCRIPT"] = os.path.join(os.path.dirname(script), "solve_captcha_cli.py")
+        go_start = time.time()
         proc = subprocess.run(
             cmd,
             input=None,
@@ -3231,6 +3232,8 @@ def _fetch_via_go_scraper(
                 clean.append({"date": date, "status": status_val, "raw": raw})
             if clean:
                 timeline[str(code).upper()] = clean
+        elapsed_ms = int((time.time() - go_start) * 1000)
+        logger.info("Go scraper completed for %s in %dms (status=%s, subjects=%d)", user_id, elapsed_ms, status, len(attendance))
         return attendance, timeline, status
     except json.JSONDecodeError:
         logger.debug("Go scraper returned non-JSON output", exc_info=True)
