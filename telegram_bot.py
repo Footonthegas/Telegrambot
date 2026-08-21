@@ -649,11 +649,7 @@ def _save_login_session(chat_id: str, user_id: str, password: str) -> None:
             "results": {},
             "timeline": {},
         }
-    threading.Thread(
-        target=_persist_login_session,
-        args=(chat_id, user_id, password, year, semester),
-        daemon=True,
-    ).start()
+    _persist_login_session(chat_id, user_id, password, year, semester)
 
 
 def _is_admin(chat_id: str) -> bool:
@@ -2511,6 +2507,19 @@ def run() -> None:
 
     try:
         clear_resp = requests.post(
+            _api_url("deleteWebhook"),
+            json={"drop_pending_updates": True},
+            timeout=10,
+        )
+        if clear_resp.ok:
+            logger.info("Deleted Telegram webhook and dropped pending updates")
+        else:
+            logger.warning("Failed to delete webhook: %s", clear_resp.status_code)
+    except Exception:
+        logger.debug("Webhook deletion failed", exc_info=True)
+
+    try:
+        clear_resp = requests.post(
             _api_url("getUpdates"),
             json={"timeout": 0, "allowed_updates": ["message", "edited_message", "callback_query"]},
             timeout=10,
@@ -2527,6 +2536,7 @@ def run() -> None:
     logger.info("Telegram bot started (long polling)")
 
     offset: int | None = None
+    _409_backoff = 1.0
     while True:
         try:
             params: dict[str, Any] = {
@@ -2537,8 +2547,14 @@ def run() -> None:
                 params["offset"] = offset
 
             resp = requests.get(_api_url("getUpdates"), params=params, timeout=POLL_TIMEOUT + 10)
+            if resp.status_code == 409:
+                logger.warning("Telegram 409 Conflict detected; another instance may be polling. Backing off for %.1fs", _409_backoff)
+                time.sleep(_409_backoff)
+                _409_backoff = min(_409_backoff * 2, 60.0)
+                continue
             resp.raise_for_status()
             payload = resp.json()
+            _409_backoff = 1.0
 
             if not payload.get("ok"):
                 logger.error("Telegram getUpdates failed: %s", payload)
