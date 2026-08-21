@@ -25,4 +25,5 @@ services:
         value: "10000"
       - key: BACKEND_PUBLIC_BASE_URL
         value: https://attendance-bot-ng7k.onrender.com
-    healthCheckPath: /health
+      - key: DEFAULT_ACADEMIC_YEAR
+        value: "2026-27"

@@ -3153,13 +3153,13 @@ def _fetch_via_go_scraper(
     binary = _GO_SCRAPER_BINARY_LINUX if os.path.exists(_GO_SCRAPER_BINARY_LINUX) else _GO_SCRAPER_BINARY_WIN
     cmd = None
     if os.path.exists(binary):
-        cmd = [binary, user_id, password]
+        cmd = [binary, user_id, password, "--json"]
         if year:
             cmd.extend(["--year", year])
         if semester:
             cmd.extend(["--semester", semester])
     elif os.path.exists(script):
-        cmd = ["go", "run", script, user_id, password]
+        cmd = ["go", "run", script, user_id, password, "--json"]
         if year:
             cmd.extend(["--year", year])
         if semester:

@@ -1858,7 +1858,23 @@ func main() {
 	fullFlag := false
 	jsonFlag := false
 
-	for i := 5; i < len(os.Args); i++ {
+	var positionalArgs []string
+	for i := 3; i < len(os.Args); i++ {
+		if !strings.HasPrefix(os.Args[i], "-") {
+			positionalArgs = append(positionalArgs, os.Args[i])
+		}
+	}
+	if len(positionalArgs) > 0 {
+		year = positionalArgs[0]
+	}
+	if len(positionalArgs) > 1 {
+		semester = positionalArgs[1]
+	}
+
+	for i := 3; i < len(os.Args); i++ {
+		if !strings.HasPrefix(os.Args[i], "-") {
+			continue
+		}
 		switch os.Args[i] {
 		case "--clear-cookies":
 			clearCookiesFlag = true
@@ -1888,13 +1904,6 @@ func main() {
 		case "--json":
 			jsonFlag = true
 		}
-	}
-
-	if len(os.Args) > 3 {
-		year = os.Args[3]
-	}
-	if len(os.Args) > 4 {
-		semester = os.Args[4]
 	}
 
 	if clearCookiesFlag {
