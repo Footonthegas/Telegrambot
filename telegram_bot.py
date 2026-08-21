@@ -2508,6 +2508,22 @@ def run() -> None:
         logger.exception("Backend server startup failed")
 
     time.sleep(1)
+
+    try:
+        clear_resp = requests.post(
+            _api_url("getUpdates"),
+            json={"timeout": 0, "allowed_updates": ["message", "edited_message", "callback_query"]},
+            timeout=10,
+        )
+        if clear_resp.ok:
+            clear_data = clear_resp.json()
+            cleared = len(clear_data.get("result", []))
+            logger.info("Cleared %d pending Telegram updates", cleared)
+        else:
+            logger.warning("Failed to clear pending updates: %s", clear_resp.status_code)
+    except Exception:
+        logger.debug("Pending update cleanup failed", exc_info=True)
+
     logger.info("Telegram bot started (long polling)")
 
     offset: int | None = None
