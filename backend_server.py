@@ -67,6 +67,11 @@ def _authorized(req) -> bool:
 def create_app() -> Flask:
     app = Flask(__name__)
 
+    @app.before_request
+    def strip_trailing_space() -> Any:
+        if request.path != request.path.rstrip():
+            return redirect(request.path.rstrip(), 301)
+
     @app.get("/health")
     def health() -> Any:
         return jsonify(_build_status_payload())

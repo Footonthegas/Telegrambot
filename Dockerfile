@@ -26,6 +26,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 COPY --from=gobuilder /build/fast_scraper_go /app/fast_scraper_go
+RUN chmod +x /app/fast_scraper_go/fast_scraper_go && echo '{}' > /app/fast_scraper_go/session_cookies.json
 
 EXPOSE 8080
 

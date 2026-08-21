@@ -3343,7 +3343,7 @@ def fetch_attendance_detailed(
 
         # Navigate to attendance
         if not _navigate_to_attendance(driver, year, semester, progress_callback=progress_callback):
-            logger.error("Failed to navigate to attendance page")
+            logger.error("Failed to navigate to attendance page for user %s", user_id)
             _set_login_diagnostic("Login successful, but attendance navigation failed")
             return {}, {}, STATUS_NAVIGATION_FAILED
 
@@ -3353,7 +3353,7 @@ def fetch_attendance_detailed(
         timeline = _dedupe_timeline_entries(timeline)
         _last_datewise_timeline = timeline
 
-        logger.info("Scraped attendance for %d subjects", len(data))
+        logger.info("Scraped %d subjects for user %s", len(data), user_id)
         if not data:
             _set_login_diagnostic("Reached attendance page but table data is empty (year/semester/proceed/table selector mismatch)")
             return {}, timeline, STATUS_NAVIGATION_FAILED
