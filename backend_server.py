@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from dotenv import load_dotenv
-from flask import Flask, jsonify, request, redirect
+from flask import Flask, jsonify, request
 from werkzeug.serving import make_server
 
 from db import get_service_control, init_db, set_service_enabled
@@ -67,13 +67,12 @@ def _authorized(req) -> bool:
 def create_app() -> Flask:
     app = Flask(__name__)
 
-    @app.before_request
-    def strip_trailing_space() -> Any:
-        if request.path != request.path.rstrip():
-            return redirect(request.path.rstrip(), 301)
-
     @app.get("/health")
     def health() -> Any:
+        return jsonify(_build_status_payload())
+
+    @app.get("/health%20")
+    def health_with_trailing_space() -> Any:
         return jsonify(_build_status_payload())
 
     @app.get("/status")

@@ -31,3 +31,4 @@ RUN chmod +x /app/fast_scraper_go/fast_scraper_go && echo '{}' > /app/fast_scrap
 EXPOSE 8080
 
 CMD ["python", "telegram_bot.py"]
+# rebuilt to invalidate render cache
