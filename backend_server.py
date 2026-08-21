@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from dotenv import load_dotenv
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, redirect
 from werkzeug.serving import make_server
 
 from db import get_service_control, init_db, set_service_enabled

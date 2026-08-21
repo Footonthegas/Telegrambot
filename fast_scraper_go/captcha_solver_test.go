@@ -78,7 +78,7 @@ func downloadTestCaptcha(t *testing.T) []byte {
 }
 
 func TestFindCaptchaSolverScript(t *testing.T) {
-	scriptPath := findCaptchaSolverScript()
+	scriptPath, _ := findCaptchaSolverScript()
 	t.Logf("Found script at: %q", scriptPath)
 	if scriptPath == "" {
 		t.Fatal("script not found")
@@ -109,12 +109,8 @@ func TestSolveCaptchaGoWithStdin(t *testing.T) {
 	t.Logf("Go subprocess CAPTCHA solve: %q", result)
 
 	// Cross-check: solve the same image via direct Python call
-	scriptPath := findCaptchaSolverScript()
-	if scriptPath == "" {
-		return
-	}
-	py := findPythonBinary()
-	if py == "" {
+	scriptPath, py := findCaptchaSolverScript()
+	if scriptPath == "" || py == "" {
 		return
 	}
 

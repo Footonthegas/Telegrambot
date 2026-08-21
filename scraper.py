@@ -3195,6 +3195,12 @@ def _fetch_via_go_scraper(
             status = STATUS_SUCCESS
         else:
             status = STATUS_UNKNOWN_ERROR
+        subject_names: dict[str, str] = {}
+        for k, v in (data.get("subject_names") or {}).items():
+            subject_names[str(k).upper()] = str(v)
+        for c in data.get("courses") or []:
+            if isinstance(c, dict) and c.get("code") and c.get("name"):
+                subject_names[str(c["code"]).upper()] = str(c["name"])
         attendance: dict[str, dict[str, Any]] = {}
         for code, entry in (data.get("attendance") or {}).items():
             if not isinstance(entry, dict):
@@ -3203,10 +3209,12 @@ def _fetch_via_go_scraper(
             present = int(entry.get("present", 0) or 0)
             absent = int(entry.get("absent", 0) or 0)
             if total > 0:
-                attendance[str(code).upper()] = {
+                upper_code = str(code).upper()
+                attendance[upper_code] = {
                     "total": total,
                     "present": present,
                     "absent": absent,
+                    "name": subject_names.get(upper_code, upper_code),
                 }
         timeline_raw = data.get("timeline") or {}
         timeline: dict[str, list[dict[str, str]]] = {}
