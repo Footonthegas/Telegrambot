@@ -2492,9 +2492,22 @@ def run() -> None:
     if not TOKEN:
         raise RuntimeError("TELEGRAM_BOT_TOKEN not set in environment.")
 
-    init_db()
-    _configure_bot_commands()
-    start_backend_server_in_thread()
+    try:
+        init_db()
+    except Exception:
+        logger.exception("init_db failed during startup")
+
+    try:
+        _configure_bot_commands()
+    except Exception:
+        logger.debug("Bot commands configuration failed", exc_info=True)
+
+    try:
+        start_backend_server_in_thread()
+    except Exception:
+        logger.exception("Backend server startup failed")
+
+    time.sleep(1)
     logger.info("Telegram bot started (long polling)")
 
     offset: int | None = None

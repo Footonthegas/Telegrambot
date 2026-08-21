@@ -1,3 +1,7 @@
+# Required env vars (set in Render dashboard or below):
+#   FERNET_KEY - generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+#   TELEGRAM_BOT_TOKEN - your Telegram bot token
+#   TELEGRAM_ADMIN_CHAT_IDS - your Telegram chat ID
 services:
   - type: web
     name: attendance-bot
@@ -24,6 +28,6 @@ services:
       - key: PORT
         value: "10000"
       - key: BACKEND_PUBLIC_BASE_URL
-        value: https://attendance-bot-ng7k.onrender.com
+        value: "https://attendance-bot-ng7k.onrender.com"
       - key: DEFAULT_ACADEMIC_YEAR
         value: "2026-27"

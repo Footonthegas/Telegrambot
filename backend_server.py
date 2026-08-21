@@ -103,20 +103,20 @@ def start_backend_server_in_thread() -> threading.Thread | None:
         if _server_thread and _server_thread.is_alive():
             return _server_thread
 
-        init_db()
-        app = create_app()
         try:
-            _server_instance = make_server(BACKEND_SERVER_HOST, BACKEND_SERVER_PORT, app)
+            init_db()
         except Exception:
-            logger.exception(
-                "Backend server failed to bind on %s. Continuing without embedded backend server.",
-                get_backend_base_url(),
-            )
+            logger.exception("Backend server init_db failed; continuing without embedded backend server.")
             return None
 
+        app = create_app()
+
         def _serve() -> None:
-            logger.info("Backend server listening on %s", get_backend_base_url())
-            _server_instance.serve_forever()
+            try:
+                logger.info("Backend server listening on %s", get_backend_base_url())
+                app.run(host=BACKEND_SERVER_HOST, port=BACKEND_SERVER_PORT, debug=False, use_reloader=False, threaded=True)
+            except Exception:
+                logger.exception("Backend server stopped with error")
 
         _server_thread = threading.Thread(
             target=_serve,
