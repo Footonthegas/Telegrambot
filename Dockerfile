@@ -1,4 +1,4 @@
-FROM golang:1.24-bookworm AS gobuilder
+FROM golang:1.26 AS gobuilder
 
 WORKDIR /build
 COPY fast_scraper_go/ .
