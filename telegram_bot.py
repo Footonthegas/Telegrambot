@@ -18,9 +18,11 @@ from __future__ import annotations
 import json
 import logging
 import os
+import socketserver
 import threading
 import time
 from datetime import datetime
+from http.server import HTTPServer, SimpleHTTPRequestHandler
 from typing import Any, Callable
 
 import requests
@@ -67,6 +69,7 @@ TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
 POLL_TIMEOUT = int(os.getenv("TELEGRAM_POLL_TIMEOUT", "25"))
 CACHE_TTL_SECONDS = int(os.getenv("ATTENDANCE_CACHE_TTL_SECONDS", "900"))
 TIMETABLE_CACHE_TTL_SECONDS = int(os.getenv("TIMETABLE_CACHE_TTL_SECONDS", "900"))
+HEALTH_SERVER_PORT = int(os.getenv("PORT", os.getenv("HEALTH_SERVER_PORT", "8080")))
 DEFAULT_ACADEMIC_YEAR = os.getenv("DEFAULT_ACADEMIC_YEAR", "2025-26").strip() or "2025-26"
 ADMIN_CHAT_IDS = {
     value.strip()
@@ -89,6 +92,31 @@ TELEGRAM_SEND_TIMEOUT = (3.0, 8.0)
 TELEGRAM_EDIT_TIMEOUT = (2.5, 6.0)
 TELEGRAM_DELETE_TIMEOUT = (2.5, 5.0)
 TELEGRAM_CALLBACK_TIMEOUT = (2.0, 3.0)
+
+
+class _HealthHandler(SimpleHTTPRequestHandler):
+    def do_GET(self) -> None:
+        if self.path in ("/health", "/health%20", "/health "):
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "ok"}).encode())
+            return
+        self.send_response(404)
+        self.end_headers()
+
+    def log_message(self, format: str, *args: Any) -> None:
+        logger.debug("HTTP: " + format, *args)
+
+
+def _start_health_server(port: int) -> None:
+    try:
+        server = HTTPServer(("0.0.0.0", port), _HealthHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        logger.info("Health server listening on port %d", port)
+    except Exception:
+        logger.exception("Failed to start health server on port %d", port)
 
 
 def _api_url(method: str) -> str:
@@ -595,7 +623,13 @@ def _get_saved_credentials(chat_id: str) -> dict[str, Any] | None:
     volatile = _volatile_credentials.get(chat_id)
     if volatile:
         return dict(volatile)
-    return get_user(chat_id)
+    try:
+        user = get_user(chat_id)
+        if user:
+            return user
+    except Exception:
+        logger.exception("Failed to load saved credentials for chat_id=%s", chat_id)
+    return None
 
 
 def _clear_volatile_session(chat_id: str) -> None:
@@ -2502,6 +2536,8 @@ def run() -> None:
         start_backend_server_in_thread()
     except Exception:
         logger.exception("Backend server startup failed")
+
+    _start_health_server(HEALTH_SERVER_PORT)
 
     time.sleep(1)
 
