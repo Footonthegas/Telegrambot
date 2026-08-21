@@ -3153,17 +3153,17 @@ def _fetch_via_go_scraper(
     binary = _GO_SCRAPER_BINARY_LINUX if os.path.exists(_GO_SCRAPER_BINARY_LINUX) else _GO_SCRAPER_BINARY_WIN
     cmd = None
     if os.path.exists(binary):
-        cmd = [binary, user_id, password, "--json"]
+        cmd = [binary, user_id, password, "--full", "--json"]
         if year:
-            cmd.extend(["--year", year])
+            cmd.append(year)
         if semester:
-            cmd.extend(["--semester", semester])
+            cmd.append(semester)
     elif os.path.exists(script):
-        cmd = ["go", "run", script, user_id, password, "--json"]
+        cmd = ["go", "run", script, user_id, password, "--full", "--json"]
         if year:
-            cmd.extend(["--year", year])
+            cmd.append(year)
         if semester:
-            cmd.extend(["--semester", semester])
+            cmd.append(semester)
     if not cmd:
         return {}, {}, STATUS_UNKNOWN_ERROR
 
@@ -3186,7 +3186,15 @@ def _fetch_via_go_scraper(
         if proc.returncode != 0:
             return {}, {}, STATUS_UNKNOWN_ERROR
         data = json.loads(stdout)
-        status = str(data.get("status", "")).strip() or STATUS_UNKNOWN_ERROR
+        raw_status = str(data.get("status", "")).strip()
+        if raw_status == "login_failed":
+            status = STATUS_INVALID_CREDENTIALS
+        elif raw_status == "navigation_failed":
+            status = STATUS_NAVIGATION_FAILED
+        elif raw_status == "success":
+            status = STATUS_SUCCESS
+        else:
+            status = STATUS_UNKNOWN_ERROR
         attendance: dict[str, dict[str, Any]] = {}
         for code, entry in (data.get("attendance") or {}).items():
             if not isinstance(entry, dict):

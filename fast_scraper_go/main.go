@@ -31,6 +31,7 @@ type ScrapeResult struct {
 	Data         map[string]map[string]int
 	Timeline     map[string][]map[string]string
 	SubjectNames map[string]string
+	StudentName  string
 	Status       string
 	ElapsedMs    int64
 }
@@ -124,6 +125,11 @@ func clearCookies() {
 }
 
 func solveCaptcha(captchaBytes []byte) string {
+	header := ""
+	if len(captchaBytes) >= 4 {
+		header = fmt.Sprintf("%02x%02x%02x%02x", captchaBytes[0], captchaBytes[1], captchaBytes[2], captchaBytes[3])
+	}
+	log.Printf("[CAPTCHA-DEBUG] image bytes=%d header=%s", len(captchaBytes), header)
 	result := solveCaptchaGo(captchaBytes)
 	log.Printf("CAPTCHA solved (Python ddddocr via subprocess): %q (len=%d)", result, len(result))
 	return result
@@ -150,6 +156,27 @@ func extractSelectValue(html, name string) string {
 	fm := firstRe.FindStringSubmatch(selectHTML)
 	if len(fm) >= 2 {
 		return strings.TrimSpace(fm[1])
+	}
+	return ""
+}
+
+func extractStudentName(html string) string {
+	patterns := []string{
+		`(?i)Welcome\s*:\s*([A-Za-z\s\.]+)`,
+		`(?i)Student\s*Name\s*:\s*([A-Za-z\s\.]+)`,
+		`(?i)Name\s*:\s*([A-Za-z\s\.]+)`,
+		`(?i)<td[^>]*>\s*([A-Z][a-z]+\s+[A-Za-z]+)\s*</td>`,
+	}
+	for _, pat := range patterns {
+		re := regexp.MustCompile(pat)
+		m := re.FindStringSubmatch(html)
+		if len(m) >= 2 {
+			name := strings.TrimSpace(m[1])
+			name = strings.Trim(name, " .")
+			if name != "" && len(name) > 2 {
+				return name
+			}
+		}
 	}
 	return ""
 }
@@ -202,6 +229,7 @@ func countBinaryMarks(s string) (int, int, int) {
 func extractTimeline(html string) map[string][]map[string]string {
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "[TIMELINE] parse error: %v\n", err)
 		return nil
 	}
 
@@ -214,15 +242,25 @@ func extractTimeline(html string) map[string][]map[string]string {
 		}
 
 		var headerTexts []string
-		rows.Eq(0).Find("th, td").Each(func(j int, cell *goquery.Selection) {
-			headerTexts = append(headerTexts, strings.ToLower(strings.TrimSpace(cell.Text())))
-		})
-
-		firstHeader := ""
-		if len(headerTexts) > 0 {
-			firstHeader = headerTexts[0]
+		headerRowIdx := -1
+		for ri := 0; ri < rows.Length() && ri < 5; ri++ {
+			cells := rows.Eq(ri).Find("th, td")
+			var texts []string
+			cells.Each(func(j int, cell *goquery.Selection) {
+				texts = append(texts, strings.ToLower(strings.TrimSpace(cell.Text())))
+			})
+			firstHeader := ""
+			if len(texts) > 0 {
+				firstHeader = texts[0]
+			}
+			if firstHeader == "days" || firstHeader == "day" || firstHeader == "date" {
+				headerRowIdx = ri
+				headerTexts = texts
+				break
+			}
 		}
-		if firstHeader != "days" && firstHeader != "day" && firstHeader != "date" {
+		
+		if headerRowIdx < 0 {
 			return
 		}
 
@@ -240,10 +278,12 @@ func extractTimeline(html string) map[string][]map[string]string {
 		}
 
 		for _, c := range subjectCodes {
-			timeline[c] = []map[string]string{}
+			if timeline[c] == nil {
+				timeline[c] = []map[string]string{}
+			}
 		}
 
-		for dataRow := 1; dataRow < rows.Length(); dataRow++ {
+		for dataRow := headerRowIdx + 1; dataRow < rows.Length(); dataRow++ {
 			dcells := rows.Eq(dataRow).Find("th, td")
 			dtexts := []string{}
 			dcells.Each(func(k int, cell *goquery.Selection) {
@@ -256,7 +296,7 @@ func extractTimeline(html string) map[string][]map[string]string {
 
 			firstText := strings.TrimSpace(dtexts[0])
 			firstLower := strings.ToLower(firstText)
-			if firstLower == "overall" || firstLower == "total" || firstLower == "legend" || firstLower == "note" || strings.Contains(firstText, "->") {
+			if firstLower == "overall" || strings.Contains(firstLower, "total") || strings.Contains(firstLower, "overall") || firstLower == "legend" || firstLower == "note" || strings.Contains(firstText, "->") {
 				continue
 			}
 
@@ -265,15 +305,29 @@ func extractTimeline(html string) map[string][]map[string]string {
 				continue
 			}
 
+			rowHasMark := false
+			for _, colIdx := range codeColIndices {
+				if colIdx >= len(dtexts) {
+					continue
+				}
+				if strings.TrimSpace(dtexts[colIdx]) != "" {
+					rowHasMark = true
+					break
+				}
+			}
+			if !rowHasMark {
+				continue
+			}
+
 			for idx, colIdx := range codeColIndices {
 				if colIdx >= len(dtexts) {
 					continue
 				}
 				raw := strings.TrimSpace(dtexts[colIdx])
-				status := classifyTimelineStatus(raw)
-				if status == "" {
+				if raw == "" {
 					continue
 				}
+				status := classifyTimelineStatus(raw)
 				timeline[subjectCodes[idx]] = append(timeline[subjectCodes[idx]], map[string]string{
 					"date":   dateLabel,
 					"status": status,
@@ -304,6 +358,15 @@ func classifyTimelineStatus(raw string) string {
 		return "absent"
 	}
 	if lower == "h" || lower == "half" || lower == "0.5" {
+		return "half"
+	}
+	if strings.Contains(lower, "1") && !strings.Contains(lower, "0") {
+		return "present"
+	}
+	if strings.Contains(lower, "0") && !strings.Contains(lower, "1") {
+		return "absent"
+	}
+	if strings.Contains(lower, "1") && strings.Contains(lower, "0") {
 		return "half"
 	}
 	return ""
@@ -895,6 +958,7 @@ func fetchAttendance(client *http.Client, userID, password, year, semester strin
 		}
 
 		resultStr := string(resultHTML)
+		studentName := extractStudentName(resultStr)
 		fmt.Fprintf(os.Stderr, "[PHASE] Year/Sem submit: %dms\n", time.Since(phaseStart).Milliseconds())
 		phaseStart = time.Now()
 		if len(resultStr) > 5000 {
@@ -1121,6 +1185,7 @@ func fetchAttendance(client *http.Client, userID, password, year, semester strin
 			Data:         data,
 			Timeline:     timeline,
 			SubjectNames: subjectNames,
+			StudentName:  studentName,
 			Status:       status,
 			ElapsedMs:    elapsed,
 		}
@@ -1130,6 +1195,7 @@ func fetchAttendance(client *http.Client, userID, password, year, semester strin
 		Data:         make(map[string]map[string]int),
 		Timeline:     make(map[string][]map[string]string),
 		SubjectNames: make(map[string]string),
+		StudentName:  "",
 		Status:       "unknown_error",
 		ElapsedMs:    time.Since(start).Milliseconds(),
 	}
@@ -1353,6 +1419,7 @@ func tryFetchWithCachedSession(client *http.Client, userID, year, semester strin
 		Data:         data,
 		Timeline:     timeline,
 		SubjectNames: subjectNames,
+		StudentName:  "",
 		Status:       status,
 		ElapsedMs:    elapsed,
 	}
@@ -1834,12 +1901,43 @@ type ExtendedResult struct {
 	Attendance    map[string]map[string]int    `json:"attendance,omitempty"`
 	Timeline      map[string][]map[string]string `json:"timeline,omitempty"`
 	SubjectNames  map[string]string            `json:"subject_names,omitempty"`
+	StudentName   string                       `json:"student_name,omitempty"`
 	Courses       []RegisteredCourse           `json:"courses,omitempty"`
 	TodayTimetable []TimetableSlot             `json:"timetable_today,omitempty"`
 	WeekTimetable  map[string][]TimetableSlot  `json:"timetable_week,omitempty"`
 }
 
 func main() {
+	resulthubFlag := false
+
+	for i := 1; i < len(os.Args); i++ {
+		if os.Args[i] == "--resulthub" {
+			resulthubFlag = true
+			os.Args = append(os.Args[:i], os.Args[i+1:]...)
+			break
+		}
+	}
+
+	if resulthubFlag {
+		if len(os.Args) < 2 {
+			fmt.Fprintf(os.Stderr, "Usage: fast_scraper_go --resulthub <roll_number>\n")
+			os.Exit(1)
+		}
+		rollNumber := os.Args[1]
+		start := time.Now()
+		history, err := scrapeResultHub(rollNumber)
+		elapsed := time.Since(start).Milliseconds()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "ResultHub scrape failed: %v\n", err)
+			os.Exit(1)
+		}
+		history.ElapsedMs = elapsed
+		history.Status = "success"
+		out, _ := json.Marshal(history)
+		fmt.Println(string(out))
+		return
+	}
+
 	if len(os.Args) < 3 {
 		fmt.Fprintf(os.Stderr, "Usage: fast_scraper_go <user_id> <password> [year] [semester] [flags]\n")
 		fmt.Fprintf(os.Stderr, "Flags: --clear-cookies, --courses, --timetable, --full, --json\n")
@@ -1858,23 +1956,7 @@ func main() {
 	fullFlag := false
 	jsonFlag := false
 
-	var positionalArgs []string
 	for i := 3; i < len(os.Args); i++ {
-		if !strings.HasPrefix(os.Args[i], "-") {
-			positionalArgs = append(positionalArgs, os.Args[i])
-		}
-	}
-	if len(positionalArgs) > 0 {
-		year = positionalArgs[0]
-	}
-	if len(positionalArgs) > 1 {
-		semester = positionalArgs[1]
-	}
-
-	for i := 3; i < len(os.Args); i++ {
-		if !strings.HasPrefix(os.Args[i], "-") {
-			continue
-		}
 		switch os.Args[i] {
 		case "--clear-cookies":
 			clearCookiesFlag = true
@@ -1903,6 +1985,14 @@ func main() {
 			fullFlag = true
 		case "--json":
 			jsonFlag = true
+		default:
+			if !strings.HasPrefix(os.Args[i], "-") {
+				if year == "" {
+					year = os.Args[i]
+				} else if semester == "" {
+					semester = os.Args[i]
+				}
+			}
 		}
 	}
 
@@ -2091,7 +2181,12 @@ func main() {
 										resultHTML, err := io.ReadAll(resp.Body)
 										resp.Body.Close()
 										if err == nil {
-											ext.Attendance = parseAttendanceTable(string(resultHTML))
+									resultStr := string(resultHTML)
+									studentName := extractStudentName(resultStr)
+									ext.StudentName = studentName
+									ext.Attendance = parseAttendanceTable(resultStr)
+									ext.SubjectNames = extractSubjectNames(resultStr)
+									ext.Timeline = extractTimeline(resultStr)
 										}
 									}
 								}
@@ -2106,6 +2201,7 @@ func main() {
 		ext.Attendance = result.Data
 		ext.Timeline = result.Timeline
 		ext.SubjectNames = result.SubjectNames
+		ext.StudentName = result.StudentName
 		ext.Status = result.Status
 	}
 
